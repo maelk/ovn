@@ -157,7 +157,7 @@ encaps_tunnel_id_match(const char *tunnel_id, const char *chassis_id,
 
 static void
 tunnel_add(struct tunnel_ctx *tc, const struct sbrec_sb_global *sbg,
-           const char *new_chassis_id, const struct sbrec_encap *encap,
+           const char *new_chassis_hostname, const char *new_chassis_id, const struct sbrec_encap *encap,
            const struct ovsrec_open_vswitch_table *ovs_table)
 {
     struct smap options = SMAP_INITIALIZER(&options);
@@ -215,16 +215,25 @@ tunnel_add(struct tunnel_ctx *tc, const struct sbrec_sb_global *sbg,
     /* Add auth info if ipsec is enabled. */
     if (sbg->ipsec) {
         set_local_ip = true;
-        smap_add(&options, "remote_name", new_chassis_id);
-
+        
         /* Force NAT-T traversal via configuration */
         /* Two ipsec backends are supported: libreswan and strongswan */
         /* libreswan param: encapsulation; strongswan param: forceencaps */
         bool encapsulation;
         bool forceencaps;
+        bool usehostname;
         encapsulation = smap_get_bool(&sbg->options, "ipsec_encapsulation",
                                       false);
         forceencaps = smap_get_bool(&sbg->options, "ipsec_forceencaps", false);
+        usehostname = smap_get_bool(&sbg->options, "ipsec_hostname",
+                                      false);
+        
+        if (usehostname){
+            smap_add(&options, "remote_name", new_chassis_hostname);
+        } else {
+            smap_add(&options, "remote_name", new_chassis_id);
+        }
+
         if (encapsulation) {
             smap_add(&options, "ipsec_encapsulation", "yes");
         }
@@ -359,7 +368,7 @@ chassis_tunnel_add(const struct sbrec_chassis *chassis_rec,
         if (tun_type != pref_type) {
             continue;
         }
-        tunnel_add(tc, sbg, chassis_rec->name, chassis_rec->encaps[i],
+        tunnel_add(tc, sbg, chassis_rec->hostname, chassis_rec->name, chassis_rec->encaps[i],
                    ovs_table);
         tuncnt++;
     }
